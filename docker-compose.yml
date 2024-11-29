@@ -1,0 +1,27 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: docker/bot/Dockerfile
+    container_name: bot
+    restart: always
+    environment:
+      - PYTHONPATH=/app/src
+    env_file:
+      - .env
+
+  django_app:
+    container_name: django_app
+    build:
+      context: .
+      dockerfile: docker/django_app/Dockerfile
+      target: dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_ENV=dev
+      - PYTHONPATH=/app/src
+    env_file:
+      - .env
+    restart: always
+    command: [ "/app/entrypoint.sh" ]

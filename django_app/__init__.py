@@ -1,1 +1,1 @@
-"""Django project src code."""
+"""Django app code."""

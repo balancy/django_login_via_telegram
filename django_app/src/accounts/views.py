@@ -7,7 +7,6 @@ from datetime import timedelta
 from http import HTTPStatus
 from typing import Any
 
-from common.utils import generate_random_password
 from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.models import User
@@ -17,6 +16,8 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView, View
+
+from common.utils import generate_random_password
 
 from .models import AuthToken, TelegramUser
 
@@ -34,9 +35,8 @@ class LoginView(TemplateView):
 
         auth_token = AuthToken.objects.create(
             token=uuid.uuid4(),
-            expires_at=now() + timedelta(minutes=10),  # Токен истекает через 10 минут
+            expires_at=now() + timedelta(minutes=10),
         )
-        logger.info("Generated auth token: %s", auth_token.token)
         context["token"] = str(auth_token.token)
         context["telegram_bot_link"] = settings.TELEGRAM_BOT_LINK
 
@@ -46,7 +46,7 @@ class LoginView(TemplateView):
 class CheckAuthStatusView(View):
     """Check auth status view."""
 
-    def get(self, request: HttpRequest, *args: str, **kwargs: str) -> JsonResponse:
+    def get(self, request: HttpRequest) -> JsonResponse:
         """Get auth status."""
         auth_token = request.GET.get("token")
 
@@ -54,80 +54,54 @@ class CheckAuthStatusView(View):
             logger.info("No token provided in browser session.")
             return JsonResponse({"is_authenticated": False, "redirect": None})
 
-        try:
-            token_obj = AuthToken.objects.get(token=auth_token, user__isnull=False)
-            user = token_obj.user
-
-            logger.info(
-                "Token received: %s, Associated user: %s",
-                auth_token,
-                token_obj.user.username if token_obj else "No user",
-            )
-
-            if not request.user.is_authenticated:
-                login(request, user)
-                logger.info("Browser session synchronized for user: %s", user.username)
-
-            token_obj.delete()
-            logger.info("Token %s deleted after successful browser sync.", auth_token)
-
-            return JsonResponse({"is_authenticated": True, "redirect": None})
-        except AuthToken.DoesNotExist:
-            logger.info("No valid token found for browser session.")
+        token_obj = self._get_valid_token(auth_token)
+        if not token_obj:
+            logger.info("Invalid or expired token.")
             return JsonResponse({"is_authenticated": False, "redirect": None})
+
+        user = token_obj.user
+        if not request.user.is_authenticated:
+            login(request, user)
+            logger.info("Browser session synchronized for user: %s", user.username)
+
+        token_obj.delete()
+        return JsonResponse({"is_authenticated": True, "redirect": None})
+
+    def _get_valid_token(self, auth_token: str) -> AuthToken | None:
+        """Fetch a valid token if exists."""
+        try:
+            return AuthToken.objects.get(token=auth_token, user__isnull=False)
+        except AuthToken.DoesNotExist:
+            return None
 
 
 @method_decorator(csrf_exempt, name="dispatch")
 class TelegramAuthView(View):
     """Telegram auth view."""
 
-    def post(self, request: HttpRequest, *args: str, **kwargs: str) -> JsonResponse:
+    def post(self, request: HttpRequest) -> JsonResponse:
         """Telegram auth."""
-        logger.info("POST data received: %s", request.body)
-
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
+        data = self._parse_request_data(request)
+        if not data:
             return JsonResponse(
                 {"status": "error", "message": "Invalid payload"},
-                status=400,
+                status=HTTPStatus.BAD_REQUEST,
             )
 
-        token = data.get("token")
-        telegram_id = data.get("telegram_id")
-        username = data.get("username")
-
-        if not token or not telegram_id or not username:
+        if not self._validate_required_fields(data):
             return JsonResponse(
                 {"status": "error", "message": "Missing required fields"},
                 status=HTTPStatus.BAD_REQUEST,
             )
 
-        first_name = data.get("first_name")
-        last_name = data.get("last_name")
-
-        logger.info("Received token: %s", token)
-
-        try:
-            auth_token = AuthToken.objects.get(token=token)
-            if not auth_token.is_valid():
-                return JsonResponse(
-                    {"status": "error", "message": "Token expired"},
-                    status=HTTPStatus.BAD_REQUEST,
-                )
-        except AuthToken.DoesNotExist:
+        auth_token = self._validate_auth_token(data.get("token"))
+        if not auth_token:
             return JsonResponse(
-                {"status": "error", "message": "Invalid token"},
+                {"status": "error", "message": "Invalid or expired token"},
                 status=HTTPStatus.BAD_REQUEST,
             )
 
-        user = self._get_or_create_user(
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-        )
-
+        user = self._get_or_create_user(data)
         auth_token.user = user
         auth_token.save()
 
@@ -141,19 +115,40 @@ class TelegramAuthView(View):
             },
         )
 
+    def _parse_request_data(self, request: HttpRequest) -> dict | None:
+        """Parse and validate request data."""
+        try:
+            return json.loads(request.body)
+        except json.JSONDecodeError:
+            return None
+
+    def _validate_required_fields(self, data: dict) -> bool:
+        """Check if required fields are present."""
+        return all(
+            data.get(field) for field in ("token", "telegram_id", "username")
+        )
+
+    def _validate_auth_token(self, token: str) -> AuthToken | None:
+        """Validate the token."""
+        try:
+            auth_token = AuthToken.objects.get(token=token)
+            if auth_token.is_valid():
+                return auth_token
+        except AuthToken.DoesNotExist:
+            return None
+
     @transaction.atomic
-    def _get_or_create_user(
-        self,
-        telegram_id: int,
-        username: str,
-        first_name: str,
-        last_name: str,
-    ) -> User:
+    def _get_or_create_user(self, data: dict) -> User:
         """Retrieve or create a User and TelegramUser.
 
         If a User with the given username exists but is not associated
         with a TelegramUser, link them.
         """
+        telegram_id = data["telegram_id"]
+        username = data["username"]
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+
         try:
             telegram_user = TelegramUser.objects.get(telegram_id=telegram_id)
             logger.info("Found existing TelegramUser for telegram_id: %s", telegram_id)

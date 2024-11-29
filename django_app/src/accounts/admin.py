@@ -1,7 +1,8 @@
 """Admin settings for models."""
 
-from accounts.models import AuthToken, TelegramUser
 from django.contrib import admin
+
+from accounts.models import AuthToken, TelegramUser
 
 
 @admin.register(TelegramUser)

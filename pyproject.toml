@@ -1,0 +1,25 @@
+[project]
+name = "django-telegram-auth"
+version = "0.1.0"
+description = "Simple app to authenticate users via Telegram"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.1.3",
+    "httpx>=0.28.0",
+    "python-telegram-bot>=21.7",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.8.1"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 4
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D203", "D213"]
+
+[tool.ruff]
+exclude = ["**/.venv/**", "migrations"]
+line-length = 120

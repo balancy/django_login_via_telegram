@@ -1,0 +1,32 @@
+{% block title %}Login with Telegram{% endblock %}
+
+{% block content %}
+{% if user.is_authenticated %}
+    <p>Welcome, {{ user.first_name|default:user.username }}!</p>
+{% else %}
+    <a href="{{ telegram_bot_link }}?start={{ token }}"
+       style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;"
+       target="_blank"
+       rel="noopener noreferrer">
+       Login with Telegram
+    </a>
+    <script>
+      setInterval(function () {
+          const authToken = "{{ token }}";
+          fetch(`/check-auth-status/?token=${authToken}`, {
+              method: 'GET',
+              credentials: 'same-origin',
+          })
+          .then(response => response.json())
+          .then(data => {
+              console.log("Auth status data:", data);
+
+              if (data.is_authenticated) {
+                  location.reload();
+              }
+          })
+          .catch(error => console.error("Error checking auth status:", error));
+      }, 3000);
+    </script>
+{% endif %}
+{% endblock %}

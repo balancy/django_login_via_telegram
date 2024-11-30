@@ -61,10 +61,12 @@ class CheckAuthStatusView(View):
 
         user = token_obj.user
         if not request.user.is_authenticated:
-            login(request, user)
-            logger.info("Browser session synchronized for user: %s", user.username)
+            with transaction.atomic():
+                token_obj.delete()
+                login(request, user)
 
-        token_obj.delete()
+        logger.info("Browser session synchronized for user: %s", user.username)
+
         return JsonResponse({"is_authenticated": True, "redirect": None})
 
     def _get_valid_token(self, auth_token: str) -> AuthToken | None:
@@ -82,7 +84,6 @@ class TelegramAuthView(View):
     def post(self, request: HttpRequest) -> JsonResponse:
         """Telegram auth."""
         logger.info("Telegram auth request received.")
-        logger.info("Request body: %s", request.body)
 
         data = self._parse_request_data(request)
         if not data:

@@ -43,7 +43,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     data = _construct_data(token, telegram_user)
-    logger.info(data)
     await _send_authentication_request(update, data)
 
 

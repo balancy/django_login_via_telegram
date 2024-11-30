@@ -12,3 +12,6 @@ lint:
 
 superuser:
 	@docker exec -it django_app python src/manage.py createsuperuser
+
+delete-unused-tokens:
+	@docker exec -it django_app python src/manage.py delete_unused_tokens

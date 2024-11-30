@@ -70,7 +70,7 @@ def _construct_data(token: str, telegram_user: dict) -> dict:
     """Construct the data payload for the authentication request."""
     return {
         "token": token,
-        "telegram_id": telegram_user["id"],
+        "telegram_id": str(telegram_user["id"]),
         "username": telegram_user["username"],
         "first_name": telegram_user["first_name"],
         "last_name": telegram_user["last_name"],

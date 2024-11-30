@@ -7,6 +7,7 @@ services:
     restart: always
     environment:
       - PYTHONPATH=/app/src
+      - BACKEND_SERVER_URL=http://django_app:8000/telegram-auth/
     env_file:
       - .env
 
@@ -18,6 +19,8 @@ services:
       target: dev
     ports:
       - "8000:8000"
+    volumes:
+      - ./django_app/src:/app/src
     environment:
       - DJANGO_ENV=dev
       - PYTHONPATH=/app/src

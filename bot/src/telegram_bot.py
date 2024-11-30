@@ -13,6 +13,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 BACKEND_SERVER_URL = os.getenv("BACKEND_SERVER_URL")
 
+HEADERS = {"Host": "127.0.0.1"}
+
 
 def main() -> None:
     """Run bot."""
@@ -41,7 +43,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     data = _construct_data(token, telegram_user)
-    logger.info(data)
     await _send_authentication_request(update, data)
 
 
@@ -69,7 +70,7 @@ def _construct_data(token: str, telegram_user: dict) -> dict:
     """Construct the data payload for the authentication request."""
     return {
         "token": token,
-        "telegram_id": telegram_user["id"],
+        "telegram_id": str(telegram_user["id"]),
         "username": telegram_user["username"],
         "first_name": telegram_user["first_name"],
         "last_name": telegram_user["last_name"],
@@ -80,14 +81,19 @@ async def _send_authentication_request(update: Update, data: dict) -> None:
     """Send the authentication request to the backend server."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(BACKEND_SERVER_URL, json=data)
-            await _handle_response(update, response)
+            response = await client.post(
+                BACKEND_SERVER_URL,
+                json=data,
+                headers=HEADERS,
+            )
     except httpx.RequestError as e:
         await _send_message(
             update,
             "A connection error occurred. Please try again.",
         )
         logger.info("Error while sending data to backend: %s", e)
+    else:
+        await _handle_response(update, response)
 
 
 async def _handle_response(update: Update, response: httpx.Response) -> None:

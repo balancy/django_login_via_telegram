@@ -1,4 +1,5 @@
 """Logger configuration for the bot."""
+
 import logging
 
 logging.basicConfig(

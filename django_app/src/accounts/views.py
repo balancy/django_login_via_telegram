@@ -81,6 +81,9 @@ class TelegramAuthView(View):
 
     def post(self, request: HttpRequest) -> JsonResponse:
         """Telegram auth."""
+        logger.info("Telegram auth request received.")
+        logger.info("Request body: %s", request.body)
+
         data = self._parse_request_data(request)
         if not data:
             return JsonResponse(
@@ -124,9 +127,7 @@ class TelegramAuthView(View):
 
     def _validate_required_fields(self, data: dict) -> bool:
         """Check if required fields are present."""
-        return all(
-            data.get(field) for field in ("token", "telegram_id", "username")
-        )
+        return all(data.get(field) for field in ("token", "telegram_id", "username"))
 
     def _validate_auth_token(self, token: str) -> AuthToken | None:
         """Validate the token."""

@@ -13,6 +13,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 BACKEND_SERVER_URL = os.getenv("BACKEND_SERVER_URL")
 
+HEADERS = {"Host": "127.0.0.1"}
+
 
 def main() -> None:
     """Run bot."""
@@ -80,14 +82,19 @@ async def _send_authentication_request(update: Update, data: dict) -> None:
     """Send the authentication request to the backend server."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(BACKEND_SERVER_URL, json=data)
-            await _handle_response(update, response)
+            response = await client.post(
+                BACKEND_SERVER_URL,
+                json=data,
+                headers=HEADERS,
+            )
     except httpx.RequestError as e:
         await _send_message(
             update,
             "A connection error occurred. Please try again.",
         )
         logger.info("Error while sending data to backend: %s", e)
+    else:
+        await _handle_response(update, response)
 
 
 async def _handle_response(update: Update, response: httpx.Response) -> None:
